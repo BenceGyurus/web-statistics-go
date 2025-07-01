@@ -19,7 +19,9 @@ PREFIX=
 
 ##### queries:
 `sessionId`: the unique id of the user
+
 `p`: the URL path of the visited page
+
 `site`: the domain of the visited website 
 
 *usage example:*
