@@ -12,7 +12,7 @@ func main() {
 	} else {
 		println("Connected to Cassandra cluster successfully")
 	}
-	defer database.Session.Close()
+	//defer database.Session.Close()
 
 	server.Server()
 

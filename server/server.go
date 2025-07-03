@@ -1,12 +1,12 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"statistics/database"
 	"statistics/statistics"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,12 +17,20 @@ func userTraffic(c *gin.Context) {
 	if sessionId == "" {
 		sessionId = uuid.New().String()
 	}
-	fmt.Println("Session ID:", sessionId)
-	err := database.Session.Query(`
-        INSERT INTO statistics.traffic (id, sessionId, timestamp, path, site) 
-        VALUES (uuid(), ?, toTimestamp(now()), ?, ?)`,
-		sessionId, c.Query("p"), c.Query("site"),
-	).Exec()
+
+	ip := c.Request.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		ip = c.ClientIP()
+	}
+
+	record := database.WebMetric{
+		SessionId: sessionId,
+		Timestamp: time.Now(),
+		Page:      c.Query("p"),
+		Site:      c.Query("site"),
+		Ip:        ip,
+	}
+	err := database.Session.Create(&record).Error
 	if err != nil {
 		log.Println("Error inserting traffic data:", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
@@ -32,26 +40,29 @@ func userTraffic(c *gin.Context) {
 }
 
 func traffic(c *gin.Context) {
-	/*from := c.Query("from")
+	from := c.Query("from")
 	to := c.Query("to")
-	if from == "" || to == "" {
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
+	page := c.Query("page")
+	var fromTime, toTime time.Time
+	var err error
+	layout := "2006-01-02"
+	if !(from == "" || to == "") {
+		fromTime, err = time.Parse(layout, from)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		toTime, err = time.Parse(layout, to)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	} else {
+		fromTime = time.Now().Add(-24 * time.Hour)
+		toTime = time.Now()
 	}
-
-	fromTime, err := time.Parse(time.RFC3339, from)
-	if err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}
-	toTime, err := time.Parse(time.RFC3339, to)
-	if err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
-		return
-	}*/
-
-	statistics.GetUsers()
-	c.String(http.StatusOK, "Traffic data processed successfully")
+	numberOfUsers := statistics.GetUsers(fromTime, toTime, page)
+	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
 }
 
 func Server() {
