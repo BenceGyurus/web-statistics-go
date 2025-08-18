@@ -6,6 +6,7 @@ import (
 	"os"
 	"statistics/database"
 	"statistics/statistics"
+	"statistics/structs"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,8 +23,7 @@ func userTraffic(c *gin.Context) {
 	if ip == "" {
 		ip = c.ClientIP()
 	}
-
-	record := database.WebMetric{
+	record := structs.WebMetric{
 		SessionId: sessionId,
 		Timestamp: time.Now(),
 		Page:      c.Query("p"),
@@ -65,6 +65,32 @@ func traffic(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
 }
 
+func pagesTraffic(c *gin.Context) {
+	from := c.Query("from")
+	to := c.Query("to")
+	page := c.Query("page")
+	var fromTime, toTime time.Time
+	var err error
+	layout := "2006-01-02"
+	if !(from == "" || to == "") {
+		fromTime, err = time.Parse(layout, from)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		toTime, err = time.Parse(layout, to)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	} else {
+		fromTime = time.Now().Add(-24 * time.Hour)
+		toTime = time.Now()
+	}
+	numberOfUsers := statistics.GetUsersByPages(fromTime, toTime, page)
+	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
+}
+
 func Server() {
 	router := gin.Default()
 	port := os.Getenv("PORT")
@@ -78,6 +104,14 @@ func Server() {
 	router.POST(prefix + "/login")
 
 	router.POST(prefix+"/traffic", traffic)
+
+	router.POST(prefix+"/sites", pagesTraffic)
+
+	router.POST(prefix+"/graph", statistics.GetTrafficStats)
+
+	router.POST(prefix+"/active", statistics.GetActiveUsers)
+
+	router.POST(prefix+"/time", statistics.GetTimeOnTheSite)
 
 	log.Println("prefix", prefix)
 	err := router.Run("localhost:" + port)

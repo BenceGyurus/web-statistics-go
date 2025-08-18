@@ -1,6 +1,8 @@
 package database
 
 import (
+	"statistics/structs"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -16,7 +18,7 @@ func DatabaseInitSession() error {
 
 	Session = db
 
-	err = db.AutoMigrate(&WebMetric{})
+	err = db.AutoMigrate(&structs.WebMetric{})
 	if err != nil {
 		return err
 	}
