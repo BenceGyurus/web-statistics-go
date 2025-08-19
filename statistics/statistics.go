@@ -153,17 +153,29 @@ type ActiveUsersResponse struct {
 
 func GetActiveUsers(c *gin.Context) {
 	now := time.Now()
+	page := c.Query("page")
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
 
 	var count int64
 
-	if err := database.Session.
-		Model(&structs.WebMetric{}).
-		Where("timestamp >= ? AND timestamp <= ?", fiveMinutesAgo, now).
-		Distinct("session_id").
-		Count(&count).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	if page != "" {
+		if err := database.Session.
+			Model(&structs.WebMetric{}).
+			Where("timestamp >= ? AND timestamp <= ?", fiveMinutesAgo, now).
+			Distinct("session_id").
+			Count(&count).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		if err := database.Session.
+			Model(&structs.WebMetric{}).
+			Where("timestamp >= ? AND timestamp <= ? AND site = ?", fiveMinutesAgo, now, page).
+			Distinct("session_id").
+			Count(&count).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, ActiveUsersResponse{Count: int(count)})
@@ -176,6 +188,7 @@ type AvgTimeResponse struct {
 func GetTimeOnTheSite(c *gin.Context) {
 	startStr := c.Query("start")
 	endStr := c.Query("end")
+	page := c.Query("page")
 
 	end := time.Now()
 	if endStr != "" {
@@ -197,14 +210,36 @@ func GetTimeOnTheSite(c *gin.Context) {
 		start = t
 	}
 
-	query := `
+	var result AvgTimeResponse
+	if page == "" {
+		query := `
 			WITH diffs AS (
 				SELECT
 					session_id,
 					EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
 				FROM web_metrics
 				WHERE timestamp >= ? AND timestamp <= ?
-			),
+			session_times AS (
+				SELECT
+					session_id,
+					SUM(CASE WHEN minutes_diff IS NOT NULL AND minutes_diff <= 5 THEN minutes_diff ELSE 0 END) AS total_time
+				FROM diffs
+				GROUP BY session_id
+			)
+			SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
+		`
+		if err := database.Session.Raw(query, start, end).Scan(&result).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		query := `
+			WITH diffs AS (
+				SELECT
+					session_id,
+					EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ? AND site = ?
 			session_times AS (
 				SELECT
 					session_id,
@@ -215,10 +250,10 @@ func GetTimeOnTheSite(c *gin.Context) {
 			SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
 		`
 
-	var result AvgTimeResponse
-	if err := database.Session.Raw(query, start, end).Scan(&result).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		if err := database.Session.Raw(query, start, end, page).Scan(&result).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, result)
