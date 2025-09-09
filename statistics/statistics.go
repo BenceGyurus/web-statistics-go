@@ -63,6 +63,7 @@ func GetTrafficStats(c *gin.Context) {
 	startStr := c.Query("start")
 	endStr := c.Query("end")
 	intervalsStr := c.DefaultQuery("intervals", "10")
+	page := c.Query("site")
 
 	// default: last 24h
 	end := time.Now()
@@ -101,7 +102,9 @@ func GetTrafficStats(c *gin.Context) {
 	}
 	var results []Result
 
-	query := `
+	if page == "" {
+
+		query := `
 			WITH interval_data AS (
 				SELECT
 					floor(extract(epoch from (timestamp - ?)) / ?)::int as interval,
@@ -120,9 +123,34 @@ func GetTrafficStats(c *gin.Context) {
 			ORDER BY interval
 		`
 
-	if err := database.Session.Raw(query, start, intervalDuration.Seconds(), start, end).Scan(&results).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		if err := database.Session.Raw(query, start, intervalDuration.Seconds(), start, end).Scan(&results).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		query := `
+	WITH interval_data AS (
+		SELECT
+			floor(extract(epoch from (timestamp - ?)) / ?)::int as interval,
+			session_id,
+			count(*) as cnt
+		FROM web_metrics
+		WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+		GROUP BY interval, session_id
+	)
+	SELECT
+		interval,
+		count(DISTINCT session_id) as unique_sessions,
+		sum(cnt) as total_requests
+	FROM interval_data
+	GROUP BY interval
+	ORDER BY interval
+`
+
+		if err := database.Session.Raw(query, start, intervalDuration.Seconds(), start, end, page).Scan(&results).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	stats := make([]TrafficStat, intervals)
@@ -153,12 +181,12 @@ type ActiveUsersResponse struct {
 
 func GetActiveUsers(c *gin.Context) {
 	now := time.Now()
-	page := c.Query("page")
+	page := c.Query("site")
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
 
 	var count int64
 
-	if page != "" {
+	if page == "" {
 		if err := database.Session.
 			Model(&structs.WebMetric{}).
 			Where("timestamp >= ? AND timestamp <= ?", fiveMinutesAgo, now).
@@ -188,7 +216,7 @@ type AvgTimeResponse struct {
 func GetTimeOnTheSite(c *gin.Context) {
 	startStr := c.Query("start")
 	endStr := c.Query("end")
-	page := c.Query("page")
+	page := c.Query("site")
 
 	end := time.Now()
 	if endStr != "" {
