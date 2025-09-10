@@ -101,8 +101,6 @@ func Server() {
 
 	router.GET(prefix+"/put-traffic", userTraffic)
 
-	router.POST(prefix + "/login")
-
 	router.POST(prefix+"/traffic", traffic)
 
 	router.POST(prefix+"/sites", pagesTraffic)
