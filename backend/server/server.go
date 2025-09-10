@@ -65,6 +65,17 @@ func traffic(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
 }
 
+func getSites(c *gin.Context) {
+	var sites []string
+	err := database.Session.Model(&structs.WebMetric{}).Distinct("site").Pluck("site", &sites).Error
+	if err != nil {
+		log.Println("Error fetching distinct sites:", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sites": sites})
+}
+
 func pagesTraffic(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
@@ -91,6 +102,22 @@ func pagesTraffic(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
 }
 
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func Server() {
 	router := gin.Default()
 	port := os.Getenv("PORT")
@@ -98,6 +125,8 @@ func Server() {
 	if port == "" {
 		port = "8080"
 	}
+
+	router.Use(CORSMiddleware())
 
 	router.GET(prefix+"/put-traffic", userTraffic)
 
@@ -110,6 +139,8 @@ func Server() {
 	router.POST(prefix+"/active", statistics.GetActiveUsers)
 
 	router.POST(prefix+"/time", statistics.GetTimeOnTheSite)
+
+	router.POST(prefix+"/get-sites", getSites)
 
 	log.Println("prefix", prefix)
 	err := router.Run("localhost:" + port)
