@@ -1,5 +1,6 @@
 "use client"
 
+import Selector from "@/components/selector/Selector.component";
 import { useEffect, useState } from "react";
 
 export default function Home() {
@@ -23,11 +24,7 @@ export default function Home() {
       <div>
           <h1>Statisztikák</h1>
           <div>
-            {sites.map((site) => (
-              <div>
-                {site}
-              </div>
-            ))}
+              <Selector options={sites.filter(site => {return site!==""})} selected={""} onSelect={(value) => console.log(value)} />
           </div>
       </div>
     </div>
