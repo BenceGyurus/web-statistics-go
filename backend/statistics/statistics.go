@@ -1,7 +1,6 @@
 package statistics
 
 import (
-	"fmt"
 	"net/http"
 	"statistics/database"
 	"statistics/structs"
@@ -26,24 +25,72 @@ func GetUsers(t1 time.Time, t2 time.Time, site string) int {
 	return results
 }
 
-func GetUsersByPages(t1 time.Time, t2 time.Time, site string) int {
-	var results []int /*[]struct {
-		Traffic int    `gorm:"count(session_id)"`
-		page    string `gorm:"column:page"`
-	}*/
+type SiteTraffic struct {
+	Page  string `json:"page"`
+	Count int    `json:"count"`
+}
 
-	if site == "" {
-		query := `SELECT page, COUNT(session_id) FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? GROUP BY page, session_id;`
-		database.Session.Raw(query, t1, t2).Scan(&results)
+func GetUsersByPages(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	page := c.Query("page")
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse("2006-01-02", endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
 	}
-	if site != "" {
-		query := `SELECT page, COUNT(session_id) FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? AND site = ? GROUP BY page, session_id;`
-		database.Session.Raw(query, t1, t2, site).Scan(&results)
+
+	// default start date = 24h before end
+	start := end.Add(-24 * time.Hour)
+	if startStr != "" {
+		t, err := time.Parse("2006-01-02", startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
 	}
 
-	fmt.Println("Results:", results)
+	// Build base query – you’ll need a table with at least session_id, url, time
+	var results []SiteTraffic
+	if page == "" {
+		query := `
+				SELECT page, COUNT(*) AS count
+				FROM (
+					SELECT DISTINCT session_id, page
+					FROM web_metrics
+					WHERE timestamp >= ? AND timestamp <= ?
+				) AS t
+				GROUP BY page
+				ORDER BY count DESC;
+			`
+		if err := database.Session.Raw(query, start, end).Scan(&results).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		query := `
+				SELECT page, COUNT(*) AS count
+				FROM (
+					SELECT DISTINCT session_id, page
+					FROM web_metrics
+					WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+				) AS t
+				GROUP BY page
+				ORDER BY count DESC;
+			`
+		if err := database.Session.Raw(query, start, end, page).Scan(&results).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
-	return 5
+	c.JSON(http.StatusOK, results)
 }
 
 type TrafficStat struct {
@@ -60,15 +107,15 @@ type Traffic struct {
 }
 
 func GetTrafficStats(c *gin.Context) {
-	startStr := c.Query("start")
-	endStr := c.Query("end")
+	startStr := c.Query("from")
+	endStr := c.Query("to")
 	intervalsStr := c.DefaultQuery("intervals", "10")
-	page := c.Query("site")
-
+	page := c.Query("page")
+	layout := "2006-01-02"
 	// default: last 24h
 	end := time.Now()
 	if endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
+		t, err := time.Parse(layout, endStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
 			return
@@ -78,7 +125,7 @@ func GetTrafficStats(c *gin.Context) {
 
 	start := end.Add(-24 * time.Hour)
 	if startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
+		t, err := time.Parse(layout, startStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
 			return
@@ -181,7 +228,7 @@ type ActiveUsersResponse struct {
 
 func GetActiveUsers(c *gin.Context) {
 	now := time.Now()
-	page := c.Query("site")
+	page := c.Query("page")
 	fiveMinutesAgo := now.Add(-5 * time.Minute)
 
 	var count int64
@@ -214,13 +261,14 @@ type AvgTimeResponse struct {
 }
 
 func GetTimeOnTheSite(c *gin.Context) {
-	startStr := c.Query("start")
-	endStr := c.Query("end")
-	page := c.Query("site")
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	page := c.Query("page")
+	layout := "2006-01-02"
 
 	end := time.Now()
 	if endStr != "" {
-		t, err := time.Parse(time.RFC3339, endStr)
+		t, err := time.Parse(layout, endStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
 			return
@@ -230,7 +278,7 @@ func GetTimeOnTheSite(c *gin.Context) {
 
 	start := end.Add(-24 * time.Hour)
 	if startStr != "" {
-		t, err := time.Parse(time.RFC3339, startStr)
+		t, err := time.Parse(layout, startStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
 			return
@@ -242,19 +290,19 @@ func GetTimeOnTheSite(c *gin.Context) {
 	if page == "" {
 		query := `
 			WITH diffs AS (
-				SELECT
-					session_id,
-					EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
-				FROM web_metrics
-				WHERE timestamp >= ? AND timestamp <= ?
-			session_times AS (
-				SELECT
-					session_id,
-					SUM(CASE WHEN minutes_diff IS NOT NULL AND minutes_diff <= 5 THEN minutes_diff ELSE 0 END) AS total_time
-				FROM diffs
-				GROUP BY session_id
-			)
-			SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
+			SELECT
+				session_id,
+				EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
+			FROM web_metrics
+			WHERE timestamp >= ? AND timestamp <= ?
+		), session_times AS (
+			SELECT
+				session_id,
+				SUM(CASE WHEN minutes_diff IS NOT NULL AND minutes_diff <= 5 THEN minutes_diff ELSE 0 END) AS total_time
+			FROM diffs
+			GROUP BY session_id
+		)
+		SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
 		`
 		if err := database.Session.Raw(query, start, end).Scan(&result).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -263,19 +311,19 @@ func GetTimeOnTheSite(c *gin.Context) {
 	} else {
 		query := `
 			WITH diffs AS (
-				SELECT
-					session_id,
-					EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
-				FROM web_metrics
-				WHERE timestamp >= ? AND timestamp <= ? AND site = ?
-			session_times AS (
-				SELECT
-					session_id,
-					SUM(CASE WHEN minutes_diff IS NOT NULL AND minutes_diff <= 5 THEN minutes_diff ELSE 0 END) AS total_time
-				FROM diffs
-				GROUP BY session_id
-			)
-			SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
+			SELECT
+				session_id,
+				EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp))) / 60.0 AS minutes_diff
+			FROM web_metrics
+			WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+		), session_times AS (
+			SELECT
+				session_id,
+				SUM(CASE WHEN minutes_diff IS NOT NULL AND minutes_diff <= 5 THEN minutes_diff ELSE 0 END) AS total_time
+			FROM diffs
+			GROUP BY session_id
+		)
+		SELECT COALESCE(AVG(total_time), 0) AS avg_time_spent FROM session_times;
 		`
 
 		if err := database.Session.Raw(query, start, end, page).Scan(&result).Error; err != nil {

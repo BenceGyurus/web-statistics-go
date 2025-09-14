@@ -76,32 +76,6 @@ func getSites(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sites": sites})
 }
 
-func pagesTraffic(c *gin.Context) {
-	from := c.Query("from")
-	to := c.Query("to")
-	page := c.Query("page")
-	var fromTime, toTime time.Time
-	var err error
-	layout := "2006-01-02"
-	if !(from == "" || to == "") {
-		fromTime, err = time.Parse(layout, from)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		toTime, err = time.Parse(layout, to)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-	} else {
-		fromTime = time.Now().Add(-24 * time.Hour)
-		toTime = time.Now()
-	}
-	numberOfUsers := statistics.GetUsersByPages(fromTime, toTime, page)
-	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
-}
-
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -132,7 +106,7 @@ func Server() {
 
 	router.POST(prefix+"/traffic", traffic)
 
-	router.POST(prefix+"/sites", pagesTraffic)
+	router.POST(prefix+"/sites", statistics.GetUsersByPages)
 
 	router.POST(prefix+"/graph", statistics.GetTrafficStats)
 
