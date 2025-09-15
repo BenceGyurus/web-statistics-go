@@ -117,7 +117,7 @@ func Server() {
 	router.POST(prefix+"/get-sites", getSites)
 
 	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
+	router.GET(prefix+"/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
 
