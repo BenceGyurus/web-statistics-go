@@ -116,6 +116,11 @@ func Server() {
 
 	router.POST(prefix+"/get-sites", getSites)
 
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
+	})
+
 	log.Println("prefix", prefix)
 	log.Print("Starting server on port " + port)
 	err := router.Run("0.0.0.0:" + port)

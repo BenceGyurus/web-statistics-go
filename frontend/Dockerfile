@@ -1,33 +1,62 @@
-FROM node:18-alpine AS base
+FROM node:24-alpine AS base
 
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Build arguments for configurable environment variables
+ARG PREFIX=/api/v1
+ARG BACKEND=http://backend:3001
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache libc6-compat dumb-init && \
+    rm -rf /var/cache/apk/*
+
 WORKDIR /app
+
+# Stage 1: Install dependencies
+FROM base AS deps
 
 COPY package.json package-lock.json* ./
-RUN npm ci
 
+RUN npm ci --only=production --no-audit --no-fund && \
+    npm audit --audit-level=moderate || true
+
+# Stage 2: Build the application
 FROM base AS builder
-WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV PREFIX=/api/v1
-ENV BACKEND=http://backend:3001
+
+# Ensure public directory exists (create empty one if it doesn't)
+RUN mkdir -p public
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+ENV PREFIX=${PREFIX}
+ENV BACKEND=${BACKEND}
 
 RUN npm run build
 
+# Stage 3: Create a minimal production image
 FROM base AS runner
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV PREFIX=${PREFIX}
+ENV BACKEND=${BACKEND}
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
 WORKDIR /app
 
-ENV NODE_ENV production
+# Create .next directory with proper ownership
+RUN mkdir -p .next && \
+    chown -R nextjs:nodejs .next
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create public directory and copy assets if they exist
+RUN mkdir -p public
 
-COPY --from=builder /app/public ./public
-
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
+# Copy public assets
+COPY --from=builder /app/public ./public/
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
@@ -36,6 +65,9 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT=3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-CMD HOSTNAME="0.0.0.0" node server.js
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["node", "server.js"]

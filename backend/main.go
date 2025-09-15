@@ -10,7 +10,7 @@ func main() {
 	if error != nil {
 		panic("Failed to connect to the database: " + error.Error())
 	} else {
-		println("Connected to Cassandra cluster successfully")
+		println("Connected to TimescaleDB successfully")
 	}
 	//defer database.Session.Close()
 
