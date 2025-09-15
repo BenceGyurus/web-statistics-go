@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - frontend/**
 jobs:
   build-push-gcr:
     name: Build and Push to GCP
