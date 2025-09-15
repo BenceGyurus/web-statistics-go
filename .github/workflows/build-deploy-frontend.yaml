@@ -40,7 +40,7 @@ jobs:
 
     - name: Push Docker Image to Artifact Registry
       env:
-        GIT_TAG: ${{ github.run_number }}
+        GIT_TAG: 1.0.${{ github.run_number }}
       run: |-
         docker tag $IMAGE_NAME:latest $REGISTRY/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:latest
         docker tag $IMAGE_NAME:latest $REGISTRY/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$GIT_TAG
