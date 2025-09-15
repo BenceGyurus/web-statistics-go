@@ -94,7 +94,7 @@ func CORSMiddleware() gin.HandlerFunc {
 
 func Server() {
 	router := gin.Default()
-	port := os.Getenv("PORT")
+	port := os.Getenv("BACKEND_PORT")
 	prefix := os.Getenv("PREFIX")
 	if port == "" {
 		port = "8080"
@@ -117,7 +117,8 @@ func Server() {
 	router.POST(prefix+"/get-sites", getSites)
 
 	log.Println("prefix", prefix)
-	err := router.Run("localhost:" + port)
+	log.Print("Starting server on port " + port)
+	err := router.Run("0.0.0.0:" + port)
 	if (err) == nil {
 		log.Println("Failed to start server", "error", err)
 		panic(err)

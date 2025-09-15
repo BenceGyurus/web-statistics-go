@@ -10,6 +10,23 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - timescale_data:/var/lib/postgresql/data
-volumes:
-  timescale_data:
+      - /var/lib/postgresql/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    env_file: ./.env
+    depends_on:
+      - backend
+    
+
+  backend:
+    build: ./backend
+    env_file: ./.env
+    environment:
+      - GIN_MODE=release
+    ports:
+      - "3001:3001"
+    depends_on:
+      - timescaledb

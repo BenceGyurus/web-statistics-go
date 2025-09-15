@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Card, Statistic, Select, DatePicker, Row, Col, Typography } from "antd";
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie } from "recharts";
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -20,7 +20,7 @@ export default function Home() {
   const [sitesTraffic, setSitesTraffic] = useState<{ page: string; count: number }[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/v1/get-sites", {
+    fetch("/api/v1/get-sites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     })
@@ -32,7 +32,7 @@ export default function Home() {
   useEffect(() => {
     // visitors
     fetch(
-      `http://localhost:3001/api/v1/traffic?page=${selectedSite}${
+      `/api/v1/traffic?page=${selectedSite}${
         fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""
       }${toDate ? `&to=${toDate.toISOString().split("T")[0]}` : "" }`,
       { method: "POST", headers: { "Content-Type": "application/json" } }
@@ -43,7 +43,7 @@ export default function Home() {
 
     // chart
     fetch(
-      `http://localhost:3001/api/v1/graph?page=${selectedSite}&intervals=${
+      `/api/v1/graph?page=${selectedSite}&intervals=${
         fromDate && toDate
           ? Math.ceil(
               Math.sqrt(
@@ -62,8 +62,8 @@ export default function Home() {
       .then((response) => response.json())
       .then((data) => setVisitToChart(data || []))
       .catch((error) => console.error("Error fetching stats:", error));
-      
-    fetch(`http://localhost:3001/api/v1/active?page=${selectedSite}`, {
+
+    fetch(`/api/v1/active?page=${selectedSite}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     })
@@ -72,7 +72,7 @@ export default function Home() {
       .catch((error) => console.error("Error fetching stats:", error));
     
     
-      fetch(`http://localhost:3001/api/v1/time?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
+      fetch(`/api/v1/time?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
         toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
       }`, {
       method: "POST",
@@ -83,7 +83,7 @@ export default function Home() {
       .catch((error) => console.error("Error fetching stats:", error));
       
       
-      fetch(`http://localhost:3001/api/v1/sites?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
+      fetch(`/api/v1/sites?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
         toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
       }`, {
       method: "POST",
