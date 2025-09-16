@@ -19,26 +19,27 @@ func userTraffic(c *gin.Context) {
 		sessionId = uuid.New().String()
 		c.String(http.StatusOK, sessionId)
 		return
-	}
+	} else {
 
-	ip := c.Request.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = c.ClientIP()
+		ip := c.Request.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			ip = c.ClientIP()
+		}
+		record := structs.WebMetric{
+			SessionId: sessionId,
+			Timestamp: time.Now(),
+			Page:      c.Query("p"),
+			Site:      c.Query("site"),
+			Ip:        ip,
+		}
+		err := database.Session.Create(&record).Error
+		if err != nil {
+			log.Println("Error inserting traffic data:", err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.String(http.StatusOK, sessionId)
 	}
-	record := structs.WebMetric{
-		SessionId: sessionId,
-		Timestamp: time.Now(),
-		Page:      c.Query("p"),
-		Site:      c.Query("site"),
-		Ip:        ip,
-	}
-	err := database.Session.Create(&record).Error
-	if err != nil {
-		log.Println("Error inserting traffic data:", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	c.String(http.StatusOK, sessionId)
 }
 
 func traffic(c *gin.Context) {
