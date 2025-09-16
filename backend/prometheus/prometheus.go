@@ -38,7 +38,7 @@ func RecordMetrics() {
 					continue
 				}
 				visitorsBySite.With(prometheus.Labels{"site": site}).Set(
-					float64(statistics.GetUsers(time.Now().Add(-5*time.Minute), time.Now(), site)),
+					float64(statistics.GetUsers(time.Now().Add(-24*time.Minute), time.Now(), site)),
 				)
 				activeUsersBySite.With(prometheus.Labels{"site": site}).Set(
 					float64(statistics.ActiveUsers(site)),
