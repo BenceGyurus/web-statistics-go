@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"os"
 	"statistics/database"
+	"statistics/prometheus"
 	"statistics/statistics"
 	"statistics/structs"
 	"time"
 
+	gpmiddleware "github.com/carousell/gin-prometheus-middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -99,6 +101,10 @@ func Server() {
 	router := gin.Default()
 	port := os.Getenv("BACKEND_PORT")
 	prefix := os.Getenv("PREFIX")
+	prometheus.RecordMetrics()
+	p := gpmiddleware.NewPrometheus("gin")
+	p.Use(router)
+
 	if port == "" {
 		port = "8080"
 	}

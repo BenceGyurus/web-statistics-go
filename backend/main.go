@@ -12,7 +12,6 @@ func main() {
 	} else {
 		println("Connected to TimescaleDB successfully")
 	}
-	//defer database.Session.Close()
 
 	server.Server()
 
