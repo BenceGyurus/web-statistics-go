@@ -13,7 +13,7 @@ import (
 var (
 	visitorsBySite = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "statistics_traffic",
-		Help: "Unique sessions (traffic) in last 5 minutes by site",
+		Help: "Unique sessions (traffic) in last 24 hours by site",
 	}, []string{"site"})
 	activeUsersBySite = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "statistics_active_users",
@@ -38,7 +38,7 @@ func RecordMetrics() {
 					continue
 				}
 				visitorsBySite.With(prometheus.Labels{"site": site}).Set(
-					float64(statistics.GetUsers(time.Now().Add(-24*time.Minute), time.Now(), site)),
+					float64(statistics.GetUsers(time.Now().Add(-24*time.Hour), time.Now(), site)),
 				)
 				activeUsersBySite.With(prometheus.Labels{"site": site}).Set(
 					float64(statistics.ActiveUsers(site)),
