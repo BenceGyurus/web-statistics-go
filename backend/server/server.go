@@ -22,8 +22,10 @@ func userTraffic(c *gin.Context) {
 		c.String(http.StatusOK, sessionId)
 		return
 	} else {
-
-		ip := c.Request.Header.Get("X-Forwarded-For")
+		ip := c.Request.Header.Get("cf-connecting-ip")
+		if ip == "" {
+			ip = c.Request.Header.Get("X-Forwarded-For")
+		}
 		if ip == "" {
 			ip = c.ClientIP()
 		}
