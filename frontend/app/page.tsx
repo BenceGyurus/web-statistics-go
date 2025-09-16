@@ -2,14 +2,18 @@
 import { useEffect, useState } from "react";
 import { Card, Statistic, Select, DatePicker, Row, Col, Typography } from "antd";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie } from "recharts";
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation';
+
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
 
 export default function Home() {
   const [sites, setSites] = useState<string[]>([]);
+  const searchParams = useSearchParams();
   const [visitors, setVisitors] = useState(0);
-  const [selectedSite, setSelectedSite] = useState("");
+  const [selectedSite, setSelectedSite] = useState(searchParams.get('site') || '');
   const [visitToChart, setVisitToChart] = useState<
     { interval: number; uniqueSessions: number; totalRequests: number }[]
   >([]);
@@ -18,6 +22,7 @@ export default function Home() {
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [sitesTraffic, setSitesTraffic] = useState<{ page: string; count: number }[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/v1/get-sites", {
@@ -106,10 +111,11 @@ export default function Home() {
           <Select
             style={{ width: "100%" }}
             placeholder="Válassz webhelyet"
+            value={selectedSite || ""}
             options={sites
               .filter((site) => site !== "")
               .map((site: string) => ({ value: site, label: site }))}
-            onChange={(value) => setSelectedSite(value)}
+            onChange={(value) => {setSelectedSite(value); const params = new URLSearchParams(searchParams.toString()); params.set("site", value);router.replace(`?${params.toString()}`); }}
           />
         </Col>
         <Col xs={24} sm={12}>
