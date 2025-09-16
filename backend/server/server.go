@@ -17,6 +17,8 @@ func userTraffic(c *gin.Context) {
 	sessionId := c.Query("sessionId")
 	if sessionId == "" {
 		sessionId = uuid.New().String()
+		c.String(http.StatusOK, sessionId)
+		return
 	}
 
 	ip := c.Request.Header.Get("X-Forwarded-For")
