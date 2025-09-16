@@ -32,7 +32,7 @@ func userTraffic(c *gin.Context) {
 		record := structs.WebMetric{
 			SessionId: sessionId,
 			Timestamp: time.Now(),
-			Page:      c.Query("p"),
+			Page:      c.Query("page"),
 			Site:      c.Query("site"),
 			Ip:        ip,
 		}
