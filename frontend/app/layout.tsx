@@ -1,3 +1,4 @@
+import Head from "next/head";
 import "./globals.css";
 
 export default function RootLayout({
@@ -7,7 +8,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="hu">
-      <link rel="icon" href="/logo.png" sizes="any" />
+      <Head>
+        <link rel="icon" href="/logo.png" sizes="any" />
+      </Head>
       <body>
         {children}
       </body>
